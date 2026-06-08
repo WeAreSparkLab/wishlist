@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Wishlist ✨</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0f0e17;
+    --surface: #1a1828;
+    --card: #221f35;
+    --card-hover: #2a2742;
+    --accent: #e8c547;
+    --accent2: #ff6b9d;
+    --accent3: #7eb8f7;
+    --text: #fffffe;
+    --text-muted: #a7a5c3;
+    --border: rgba(255,255,255,0.07);
+    --drag-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 2px var(--accent);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 80px;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 60%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 35% 15%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 65% 45%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(2px 2px at 75% 85%, rgba(232,197,71,0.3) 0%, transparent 100%),
+      radial-gradient(2px 2px at 25% 55%, rgba(126,184,247,0.2) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  header { position: relative; z-index: 1; text-align: center; padding: 52px 20px 36px; }
+  .header-eyebrow { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; opacity: 0.85; }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.4rem, 6vw, 3.8rem);
+    font-weight: 700;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fffffe 30%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle { margin-top: 10px; font-size: 14px; color: var(--text-muted); font-weight: 300; }
+  .sync-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 10px; font-size: 12px; color: var(--text-muted);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px;
+  }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #6ee7b7; flex-shrink: 0; }
+  .sync-dot.syncing { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  .sync-dot.error { background: var(--accent2); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .container { position: relative; z-index: 1; max-width: 680px; margin: 0 auto; padding: 0 18px; }
+
+  .add-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 30px; display: flex; flex-direction: column; gap: 12px; }
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .input-wrap { position: relative; flex: 1; min-width: 150px; }
+  .input-wrap input, .input-wrap select {
+    width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; padding: 11px 14px;
+    outline: none; transition: border-color .2s, background .2s; appearance: none;
+  }
+  .input-wrap select option { background: var(--card); }
+  .input-wrap input::placeholder { color: var(--text-muted); }
+  .input-wrap input:focus, .input-wrap select:focus { border-color: var(--accent); background: var(--card-hover); }
+
+  .img-upload-area { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+  .img-drop-zone {
+    flex: 0 0 80px; height: 80px; background: var(--card);
+    border: 1.5px dashed rgba(232,197,71,0.3); border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; transition: border-color .2s, background .2s; overflow: hidden; position: relative;
+  }
+  .img-drop-zone:hover { border-color: var(--accent); background: var(--card-hover); }
+  .img-drop-zone.has-img { border-style: solid; border-color: var(--accent); padding: 0; }
+  .img-drop-zone img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+  .img-drop-zone .drop-label { font-size: 10px; color: var(--text-muted); text-align: center; line-height: 1.3; pointer-events: none; }
+  .img-drop-zone .drop-icon { font-size: 20px; margin-bottom: 3px; }
+  .img-drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .img-clear-btn { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; background: rgba(0,0,0,0.65); color: white; border: none; border-radius: 50%; font-size: 10px; cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 2; line-height: 1; }
+  .img-drop-zone.has-img .img-clear-btn { display: flex; }
+  .img-url-col { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 8px; }
+  .url-input { background: var(--card); border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; padding: 9px 12px; outline: none; transition: border-color .2s; width: 100%; }
+  .url-input:focus { border-color: var(--accent); }
+  .url-input::placeholder { color: var(--text-muted); }
+
+  .add-btn { background: var(--accent); color: #0f0e17; border: none; border-radius: 9px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; padding: 11px 22px; cursor: pointer; white-space: nowrap; transition: transform .15s, opacity .15s; align-self: flex-end; }
+  .add-btn:hover { opacity: .88; transform: translateY(-1px); }
+  .add-btn:active { transform: translateY(0); }
+  .add-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .stats { display: flex; gap: 6px; flex-wrap: wrap; }
+  .stat-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 30px; padding: 5px 13px; font-size: 12px; color: var(--text-muted); }
+  .stat-chip span { color: var(--accent); font-weight: 500; }
+  .view-toggle { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+  .view-btn { background: none; border: none; color: var(--text-muted); padding: 6px 12px; cursor: pointer; font-size: 14px; transition: background .15s, color .15s; }
+  .view-btn.active { background: var(--card); color: var(--accent); }
+
+  .hint { text-align: center; font-size: 12px; color: var(--text-muted); margin-bottom: 16px; opacity: .6; }
+
+  /* Loading skeleton */
+  .skeleton { background: var(--card); border-radius: var(--radius); height: 72px; animation: shimmer 1.4s ease infinite; }
+  @keyframes shimmer { 0%,100%{opacity:.4} 50%{opacity:.8} }
+
+  /* LIST */
+  #wishlist.view-list { display: flex; flex-direction: column; gap: 8px; }
+  #wishlist.view-list .item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); display: flex; align-items: center; gap: 0; cursor: grab; transition: background .15s, transform .15s; position: relative; animation: slideIn .3s ease both; touch-action: none; user-select: none; overflow: hidden; }
+  #wishlist.view-list .item:hover { background: var(--card-hover); }
+  #wishlist.view-list .item-thumb { flex-shrink: 0; width: 64px; height: 64px; object-fit: cover; border-radius: 0; margin: 8px 0 8px 8px; border-radius: 6px; }
+  #wishlist.view-list .item-thumb-placeholder { flex-shrink: 0; width: 0; }
+  #wishlist.view-list .item-inner { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 14px 16px; }
+
+  /* GRID */
+  #wishlist.view-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  #wishlist.view-grid .item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: grab; transition: background .15s, transform .15s, box-shadow .15s; position: relative; animation: slideIn .3s ease both; touch-action: none; user-select: none; overflow: hidden; display: flex; flex-direction: column; }
+  #wishlist.view-grid .item:hover { background: var(--card-hover); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  #wishlist.view-grid .item-thumb { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
+  #wishlist.view-grid .item-thumb-placeholder { width: 100%; aspect-ratio: 1/1; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 36px; color: var(--text-muted); opacity: .3; }
+  #wishlist.view-grid .item-inner { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  #wishlist.view-grid .drag-handle { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.5); border-radius: 6px; padding: 4px 5px; opacity: 0; transition: opacity .15s; }
+  #wishlist.view-grid .item:hover .drag-handle { opacity: 1; }
+  #wishlist.view-grid .rank { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); border-radius: 20px; padding: 2px 9px; font-size: 13px; }
+  #wishlist.view-grid .item-actions { display: flex; gap: 4px; margin-top: auto; }
+  #wishlist.view-grid .got-overlay { position: absolute; inset: 0; background: rgba(15,14,23,.65); display: flex; align-items: center; justify-content: center; font-size: 40px; pointer-events: none; }
+
+  @keyframes slideIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  .item.dragging { opacity: .35; cursor: grabbing; }
+  .item.drag-over { border-color: var(--accent) !important; transform: scale(1.02); }
+
+  .drag-handle { color: var(--text-muted); opacity: .4; flex-shrink: 0; cursor: grab; display: flex; flex-direction: column; gap: 3px; padding: 2px; }
+  .drag-handle span { display: block; width: 16px; height: 2px; background: currentColor; border-radius: 2px; }
+  .view-list .item:hover .drag-handle { opacity: .8; }
+
+  .rank { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; color: var(--accent); min-width: 26px; text-align: center; line-height: 1; flex-shrink: 0; }
+  .item-body { flex: 1; min-width: 0; }
+  .item-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .view-grid .item-name { white-space: normal; font-size: 13px; line-height: 1.35; }
+  .item-meta { display: flex; gap: 6px; margin-top: 3px; flex-wrap: wrap; align-items: center; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 400; white-space: nowrap; }
+  .tag-cat { background: rgba(126,184,247,.12); color: var(--accent3); border: 1px solid rgba(126,184,247,.2); }
+  .tag-price { background: rgba(232,197,71,.1); color: var(--accent); border: 1px solid rgba(232,197,71,.2); }
+  .got-badge { font-size: 10px; background: rgba(110,231,183,.12); color: #6ee7b7; border: 1px solid rgba(110,231,183,.25); border-radius: 20px; padding: 2px 7px; white-space: nowrap; }
+  .item-note { font-size: 11px; color: var(--text-muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .view-grid .item-note { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .item-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--accent3); text-decoration: none; margin-top: 4px; opacity: .8; transition: opacity .15s; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .item-link:hover { opacity: 1; text-decoration: underline; }
+  .item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px; border-radius: 6px; transition: color .15s, background .15s; font-size: 13px; line-height: 1; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; }
+  .icon-btn:hover { background: rgba(255,255,255,.08); color: var(--text); }
+  .icon-btn.del:hover { color: var(--accent2); }
+  .icon-btn.got-btn:hover { color: #6ee7b7; }
+  .item.got-it .item-name { text-decoration: line-through; color: var(--text-muted); }
+  .view-list .item.got-it { opacity: .45; }
+
+  .empty { text-align: center; padding: 60px 20px; color: var(--text-muted); display: none; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; display: block; animation: float 3s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .empty h3 { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--text); margin-bottom: 6px; }
+  .empty p { font-size: 13px; }
+
+  #drag-ghost { position: fixed; pointer-events: none; z-index: 9999; opacity: .92; transform: rotate(2deg) scale(1.03); box-shadow: var(--drag-shadow); border-radius: var(--radius); display: none; max-width: 320px; overflow: hidden; }
+
+  .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface); border: 1px solid var(--border); border-radius: 30px; padding: 10px 20px; font-size: 13px; color: var(--text); z-index: 9998; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-eyebrow">✦ Curated desires</div>
+  <h1>My Wishlist</h1>
+  <p class="subtitle">Drag to sort by priority · Mark when you get it</p>
+  <div class="sync-status" id="sync-status">
+    <div class="sync-dot syncing" id="sync-dot"></div>
+    <span id="sync-label">Connecting…</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="add-form">
+    <div class="form-row">
+      <div class="input-wrap" style="flex:2;min-width:180px">
+        <input type="text" id="inp-name" placeholder="What do you wish for? ✨" maxlength="80">
+      </div>
+      <div class="input-wrap" style="flex:1;min-width:110px">
+        <input type="text" id="inp-price" placeholder="£ price / range">
+      </div>
+    </div>
+    <div class="img-upload-area">
+      <div class="img-drop-zone" id="drop-zone" title="Upload an image">
+        <div class="drop-icon">🖼️</div>
+        <div class="drop-label">Upload<br>image</div>
+        <input type="file" id="inp-file" accept="image/*" onchange="handleFileSelect(event)">
+        <button class="img-clear-btn" id="clear-img-btn" onclick="clearImage(event)" title="Remove image">✕</button>
+        <img id="inp-preview" style="display:none">
+      </div>
+      <div class="img-url-col">
+        <input type="url" id="inp-img-url" class="url-input" placeholder="…or paste image URL">
+        <input type="url" id="inp-link" class="url-input" placeholder="🔗 Product / shop URL">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="input-wrap" style="flex:1;min-width:120px">
+        <select id="inp-cat">
+          <option value="">Category…</option>
+          <option>🛍️ Shopping</option>
+          <option>💄 Beauty</option>
+          <option>👗 Clothing</option>
+          <option>🏠 Home</option>
+          <option>📚 Books</option>
+          <option>🍽️ Food &amp; Drink</option>
+          <option>✈️ Travel</option>
+          <option>💻 Tech</option>
+          <option>🏋️ Fitness</option>
+          <option>🌿 Wellness</option>
+          <option>🎁 Treat Yourself</option>
+          <option>💎 Big Dream</option>
+        </select>
+      </div>
+      <div class="input-wrap" style="flex:2;min-width:150px">
+        <input type="text" id="inp-note" placeholder="Any notes… (optional)" maxlength="100">
+      </div>
+      <button class="add-btn" id="add-btn" onclick="addItem()">+ Add</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="stats" id="stats"></div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="btn-list" onclick="setView('list')">☰ List</button>
+      <button class="view-btn" id="btn-grid" onclick="setView('grid')">⊞ Grid</button>
+    </div>
+  </div>
+
+  <div class="hint">Drag items to set your priority order</div>
+  <div id="wishlist" class="view-list"></div>
+  <div id="empty-state" class="empty">
+    <span class="empty-icon">🌟</span>
+    <h3>Your wishlist is empty</h3>
+    <p>Add the first thing you're dreaming of above</p>
+  </div>
+</div>
+
+<div id="drag-ghost"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://vlrvpueagqfxsxttxsew.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZscnZwdWVhZ3FmeHN4dHR4c2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MDUwNDcsImV4cCI6MjA5NjQ4MTA0N30.KV2-iPA73yvJUoF1dq9MTuFOy6EXHJ8lhgFeDfWfcBc';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let items = [];
+let viewMode = localStorage.getItem('wl_view') || 'list';
+let dragSrcIdx = null;
+const dragGhost = document.getElementById('drag-ghost');
+let ghostOffX = 0, ghostOffY = 0;
+let saving = false;
+
+/* ── Sync status ── */
+function setSyncStatus(state, label) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
+  lbl.textContent = label;
+}
+
+/* ── Toast ── */
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ── Load from Supabase ── */
+async function loadItems() {
+  setSyncStatus('syncing', 'Loading…');
+  showSkeletons();
+  const { data, error } = await sb.from('wishlist_items').select('*').order('position', { ascending: true });
+  if (error) { setSyncStatus('error', 'Offline – changes saved locally'); items = loadLocal(); render(); return; }
+  items = data.map(row => ({
+    id: row.id, name: row.name, price: row.price, cat: row.cat,
+    note: row.note, img: row.img, link: row.link, got: row.got, position: row.position
+  }));
+  saveLocal();
+  setSyncStatus('ok', 'Synced');
+  render();
+}
+
+function showSkeletons() {
+  const list = document.getElementById('wishlist');
+  list.innerHTML = [1,2,3].map(() => `<div class="skeleton"></div>`).join('');
+  document.getElementById('empty-state').style.display = 'none';
+}
+
+/* ── Local fallback ── */
+function saveLocal() { localStorage.setItem('wl_items', JSON.stringify(items)); }
+function loadLocal() { return JSON.parse(localStorage.getItem('wl_items') || '[]'); }
+
+/* ── Image ── */
+let pendingImageData = null;
+
+function handleFileSelect(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { pendingImageData = ev.target.result; showPreview(pendingImageData); document.getElementById('inp-img-url').value = ''; };
+  reader.readAsDataURL(file);
+}
+function showPreview(src) {
+  const zone = document.getElementById('drop-zone'), img = document.getElementById('inp-preview');
+  img.src = src; img.style.display = 'block';
+  zone.querySelector('.drop-icon').style.display = 'none';
+  zone.querySelector('.drop-label').style.display = 'none';
+  zone.classList.add('has-img');
+}
+function clearImage(e) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  pendingImageData = null;
+  const zone = document.getElementById('drop-zone'), img = document.getElementById('inp-preview');
+  img.src = ''; img.style.display = 'none';
+  zone.querySelector('.drop-icon').style.display = '';
+  zone.querySelector('.drop-label').style.display = '';
+  zone.classList.remove('has-img');
+  document.getElementById('inp-file').value = '';
+  document.getElementById('inp-img-url').value = '';
+}
+document.getElementById('inp-img-url').addEventListener('change', function() {
+  if (this.value.trim()) { pendingImageData = this.value.trim(); showPreview(pendingImageData); }
+});
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor='var(--accent)'; });
+dz.addEventListener('dragleave', () => { dz.style.borderColor=''; });
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.style.borderColor='';
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = ev => { pendingImageData = ev.target.result; showPreview(pendingImageData); };
+    reader.readAsDataURL(file);
+  }
+});
+
+/* ── View toggle ── */
+function setView(v) {
+  viewMode = v; localStorage.setItem('wl_view', v);
+  document.getElementById('btn-list').classList.toggle('active', v==='list');
+  document.getElementById('btn-grid').classList.toggle('active', v==='grid');
+  document.getElementById('wishlist').className = v==='grid' ? 'view-grid' : 'view-list';
+  render();
+}
+
+/* ── Add ── */
+async function addItem() {
+  const name = document.getElementById('inp-name').value.trim();
+  if (!name) { document.getElementById('inp-name').focus(); return; }
+  const img   = pendingImageData || document.getElementById('inp-img-url').value.trim() || '';
+  const link  = document.getElementById('inp-link').value.trim();
+  const price = document.getElementById('inp-price').value.trim();
+  const cat   = document.getElementById('inp-cat').value;
+  const note  = document.getElementById('inp-note').value.trim();
+  const position = 0; // will be at top
+
+  // Bump all positions
+  items.forEach(i => i.position = (i.position || 0) + 1);
+
+  const btn = document.getElementById('add-btn');
+  btn.disabled = true;
+  setSyncStatus('syncing', 'Saving…');
+
+  const { data, error } = await sb.from('wishlist_items')
+    .insert([{ name, price, cat, note, img, link, got: false, position }])
+    .select().single();
+
+  if (error) {
+    // Offline fallback
+    items.unshift({ id: Date.now(), name, price, cat, note, img, link, got: false, position: 0 });
+    setSyncStatus('error', 'Saved locally');
+  } else {
+    items.unshift({ id: data.id, name, price, cat, note, img, link, got: false, position: 0 });
+    setSyncStatus('ok', 'Synced');
+    // Update positions in DB (fire-and-forget)
+    updateAllPositions();
+  }
+
+  saveLocal(); render();
+  btn.disabled = false;
+  document.getElementById('inp-name').value = '';
+  document.getElementById('inp-price').value = '';
+  document.getElementById('inp-cat').value = '';
+  document.getElementById('inp-note').value = '';
+  document.getElementById('inp-link').value = '';
+  clearImage(null);
+  document.getElementById('inp-name').focus();
+  toast('✨ Added to your wishlist!');
+}
+
+/* ── Delete ── */
+async function deleteItem(id) {
+  items = items.filter(i => i.id !== id);
+  saveLocal(); render();
+  setSyncStatus('syncing', 'Saving…');
+  const { error } = await sb.from('wishlist_items').delete().eq('id', id);
+  setSyncStatus(error ? 'error' : 'ok', error ? 'Sync error' : 'Synced');
+  toast('🗑️ Removed');
+}
+
+/* ── Toggle got ── */
+async function toggleGot(id) {
+  const item = items.find(i => i.id === id); if (!item) return;
+  item.got = !item.got;
+  saveLocal(); render();
+  setSyncStatus('syncing', 'Saving…');
+  const { error } = await sb.from('wishlist_items').update({ got: item.got }).eq('id', id);
+  setSyncStatus(error ? 'error' : 'ok', error ? 'Sync error' : 'Synced');
+  toast(item.got ? '🎉 Got it! Treat yourself!' : '↩️ Back on the list');
+}
+
+/* ── Update all positions after reorder ── */
+async function updateAllPositions() {
+  if (saving) return;
+  saving = true;
+  setSyncStatus('syncing', 'Saving order…');
+  const updates = items.map((item, idx) =>
+    sb.from('wishlist_items').update({ position: idx }).eq('id', item.id)
+  );
+  await Promise.all(updates);
+  saving = false;
+  setSyncStatus('ok', 'Synced');
+}
+
+/* ── Stats ── */
+function updateStats() {
+  const total = items.length, got = items.filter(i=>i.got).length, want = total-got;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-chip"><span>${total}</span> total</div>
+    <div class="stat-chip"><span>${want}</span> still wanting</div>
+    ${got ? `<div class="stat-chip"><span>${got}</span> got it 🎉</div>` : ''}
+  `;
+}
+
+/* ── Render ── */
+function render() {
+  const list = document.getElementById('wishlist');
+  const empty = document.getElementById('empty-state');
+  updateStats();
+  if (items.length === 0) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  list.innerHTML = '';
+
+  items.forEach((item, idx) => {
+    const el = document.createElement('div');
+    el.className = 'item' + (item.got ? ' got-it' : '');
+    el.dataset.idx = idx;
+    el.draggable = true;
+    const imgSrc = item.img || '';
+    const hasImg = !!imgSrc;
+    const linkHtml = item.link
+      ? `<a class="item-link" href="${escAttr(item.link)}" target="_blank" rel="noopener">
+           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+           ${escHtml(truncUrl(item.link))}
+         </a>` : '';
+
+    if (viewMode === 'grid') {
+      el.innerHTML = `
+        <div class="drag-handle"><span></span><span></span><span></span></div>
+        <div class="rank">${idx+1}</div>
+        ${hasImg ? `<img class="item-thumb" src="${escAttr(imgSrc)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="item-thumb-placeholder">🌟</div>`}
+        ${item.got ? `<div class="got-overlay">✓</div>` : ''}
+        <div class="item-inner">
+          <div class="item-body">
+            <div class="item-name">${escHtml(item.name)}</div>
+            <div class="item-meta">
+              ${item.cat ? `<span class="tag tag-cat">${escHtml(item.cat)}</span>` : ''}
+              ${item.price ? `<span class="tag tag-price">${escHtml(item.price)}</span>` : ''}
+              ${item.got ? `<span class="got-badge">✓ Got it!</span>` : ''}
+            </div>
+            ${item.note ? `<div class="item-note">${escHtml(item.note)}</div>` : ''}
+            ${linkHtml}
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn got-btn" onclick="toggleGot(${item.id})">${item.got?'↩️':'✓'}</button>
+            <button class="icon-btn del" onclick="deleteItem(${item.id})">✕</button>
+          </div>
+        </div>`;
+    } else {
+      el.innerHTML = `
+        ${hasImg ? `<img class="item-thumb" src="${escAttr(imgSrc)}" alt="" loading="lazy" onerror="this.style.display='none'">` : `<div class="item-thumb-placeholder"></div>`}
+        <div class="item-inner">
+          <div class="drag-handle"><span></span><span></span><span></span></div>
+          <div class="rank">${idx+1}</div>
+          <div class="item-body">
+            <div class="item-name">${escHtml(item.name)}</div>
+            <div class="item-meta">
+              ${item.cat ? `<span class="tag tag-cat">${escHtml(item.cat)}</span>` : ''}
+              ${item.price ? `<span class="tag tag-price">${escHtml(item.price)}</span>` : ''}
+              ${item.got ? `<span class="got-badge">✓ Got it!</span>` : ''}
+            </div>
+            ${item.note ? `<div class="item-note">${escHtml(item.note)}</div>` : ''}
+            ${linkHtml}
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn got-btn" onclick="toggleGot(${item.id})">${item.got?'↩️':'✓'}</button>
+            <button class="icon-btn del" onclick="deleteItem(${item.id})">✕</button>
+          </div>
+        </div>`;
+    }
+
+    el.addEventListener('dragstart', onDragStart);
+    el.addEventListener('dragenter', onDragEnter);
+    el.addEventListener('dragover',  onDragOver);
+    el.addEventListener('dragleave', onDragLeave);
+    el.addEventListener('drop',      onDrop);
+    el.addEventListener('dragend',   onDragEnd);
+    list.appendChild(el);
+  });
+}
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escAttr(s){return String(s).replace(/"/g,'&quot;');}
+function truncUrl(u){try{const p=new URL(u);return(p.hostname+(p.pathname.length>1?p.pathname:'')).slice(0,40);}catch{return u.slice(0,40);}}
+
+/* ── Drag & Drop ── */
+function onDragStart(e) {
+  dragSrcIdx = +this.dataset.idx;
+  this.classList.add('dragging');
+  dragGhost.style.display = 'block';
+  dragGhost.style.width = Math.min(this.offsetWidth,320)+'px';
+  dragGhost.innerHTML = this.outerHTML;
+  const gi = dragGhost.querySelector('.item');
+  if(gi){gi.style.animation='none';gi.style.opacity='1';}
+  const rect = this.getBoundingClientRect();
+  ghostOffX = e.clientX-rect.left; ghostOffY = e.clientY-rect.top;
+  dragGhost.style.left=(e.clientX-ghostOffX)+'px';
+  dragGhost.style.top=(e.clientY-ghostOffY)+'px';
+  const blank=document.createElement('canvas');blank.width=blank.height=1;
+  e.dataTransfer.setDragImage(blank,0,0);
+  e.dataTransfer.effectAllowed='move';
+}
+document.addEventListener('dragover',e=>{
+  e.preventDefault();
+  if(dragGhost.style.display!=='none'){
+    dragGhost.style.left=(e.clientX-ghostOffX)+'px';
+    dragGhost.style.top=(e.clientY-ghostOffY)+'px';
+  }
+});
+function onDragEnter(e){e.preventDefault();if(+this.dataset.idx!==dragSrcIdx)this.classList.add('drag-over');}
+function onDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';}
+function onDragLeave(){this.classList.remove('drag-over');}
+function onDrop(e) {
+  e.preventDefault();
+  const dest=+this.dataset.idx;
+  if(dest===dragSrcIdx)return;
+  const moved=items.splice(dragSrcIdx,1)[0];
+  items.splice(dest,0,moved);
+  saveLocal(); render();
+  updateAllPositions();
+  toast('🔀 Priority updated!');
+}
+function onDragEnd(){
+  dragGhost.style.display='none';
+  document.querySelectorAll('.item').forEach(el=>el.classList.remove('dragging','drag-over'));
+}
+
+document.getElementById('inp-name').addEventListener('keydown',e=>{if(e.key==='Enter')addItem();});
+
+// Init
+setView(viewMode);
+loadItems();
+</script>
+</body>
+</html>
