@@ -1,11 +1,10 @@
 # Wishlist
 
-A single-page wishlist app (`wishlist/index.html`).
+A single-page wishlist app (`wishlist/index.html`): add items with a price, category, note, image and link, reorder them by drag and drop, and tick things off when you get them.
 
 ## Setup
 
-This is a static page: no build step and no `.env` file.
+There is no build step, no backend and no `.env` file.
 
 1. Open `wishlist/index.html` in a browser, or serve the folder from any static host.
-2. `wishlist/index.html` ships the Supabase project URL and the **anon/public** key. That key is designed to be visible in the browser; your data is protected by Row Level Security (RLS) policies, not by hiding the key.
-3. To run against your own Supabase project, replace the URL and anon key constants in `wishlist/index.html` with your own (Supabase dashboard -> Project Settings -> API). Never commit a `service_role` key.
+2. Your list is stored in your browser's local storage, so it stays private to you on that device. Clearing site data clears the list.
