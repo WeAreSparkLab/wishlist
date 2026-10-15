@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Wishlist ✨</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #0f0e17;
@@ -194,7 +193,7 @@
   <p class="subtitle">Drag to sort by priority · Mark when you get it</p>
   <div class="sync-status" id="sync-status">
     <div class="sync-dot syncing" id="sync-dot"></div>
-    <span id="sync-label">Connecting…</span>
+    <span id="sync-label">Saved in your browser</span>
   </div>
 </header>
 
@@ -267,10 +266,6 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const SUPABASE_URL = 'https://vlrvpueagqfxsxttxsew.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZscnZwdWVhZ3FmeHN4dHR4c2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MDUwNDcsImV4cCI6MjA5NjQ4MTA0N30.KV2-iPA73yvJUoF1dq9MTuFOy6EXHJ8lhgFeDfWfcBc';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 let items = [];
 let viewMode = localStorage.getItem('wl_view') || 'list';
 let dragSrcIdx = null;
@@ -279,11 +274,9 @@ let ghostOffX = 0, ghostOffY = 0;
 let saving = false;
 
 /* ── Sync status ── */
-function setSyncStatus(state, label) {
-  const dot = document.getElementById('sync-dot');
-  const lbl = document.getElementById('sync-label');
-  dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
-  lbl.textContent = label;
+function setSyncStatus() {
+  document.getElementById('sync-dot').className = 'sync-dot';
+  document.getElementById('sync-label').textContent = 'Saved in your browser';
 }
 
 /* ── Toast ── */
@@ -295,18 +288,9 @@ function toast(msg) {
   el._t = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
-/* ── Load from Supabase ── */
-async function loadItems() {
-  setSyncStatus('syncing', 'Loading…');
-  showSkeletons();
-  const { data, error } = await sb.from('wishlist_items').select('*').order('position', { ascending: true });
-  if (error) { setSyncStatus('error', 'Offline – changes saved locally'); items = loadLocal(); render(); return; }
-  items = data.map(row => ({
-    id: row.id, name: row.name, price: row.price, cat: row.cat,
-    note: row.note, img: row.img, link: row.link, got: row.got, position: row.position
-  }));
-  saveLocal();
-  setSyncStatus('ok', 'Synced');
+/* ── Load (browser storage) ── */
+function loadItems() {
+  items = loadLocal();
   render();
 }
 
@@ -316,7 +300,7 @@ function showSkeletons() {
   document.getElementById('empty-state').style.display = 'none';
 }
 
-/* ── Local fallback ── */
+/* ── Browser storage: each visitor keeps their own private list ── */
 function saveLocal() { localStorage.setItem('wl_items', JSON.stringify(items)); }
 function loadLocal() { return JSON.parse(localStorage.getItem('wl_items') || '[]'); }
 
@@ -373,7 +357,7 @@ function setView(v) {
 }
 
 /* ── Add ── */
-async function addItem() {
+function addItem() {
   const name = document.getElementById('inp-name').value.trim();
   if (!name) { document.getElementById('inp-name').focus(); return; }
   const img   = pendingImageData || document.getElementById('inp-img-url').value.trim() || '';
@@ -388,22 +372,8 @@ async function addItem() {
 
   const btn = document.getElementById('add-btn');
   btn.disabled = true;
-  setSyncStatus('syncing', 'Saving…');
 
-  const { data, error } = await sb.from('wishlist_items')
-    .insert([{ name, price, cat, note, img, link, got: false, position }])
-    .select().single();
-
-  if (error) {
-    // Offline fallback
-    items.unshift({ id: Date.now(), name, price, cat, note, img, link, got: false, position: 0 });
-    setSyncStatus('error', 'Saved locally');
-  } else {
-    items.unshift({ id: data.id, name, price, cat, note, img, link, got: false, position: 0 });
-    setSyncStatus('ok', 'Synced');
-    // Update positions in DB (fire-and-forget)
-    updateAllPositions();
-  }
+  items.unshift({ id: Date.now(), name, price, cat, note, img, link, got: false, position: 0 });
 
   saveLocal(); render();
   btn.disabled = false;
@@ -418,37 +388,24 @@ async function addItem() {
 }
 
 /* ── Delete ── */
-async function deleteItem(id) {
+function deleteItem(id) {
   items = items.filter(i => i.id !== id);
   saveLocal(); render();
-  setSyncStatus('syncing', 'Saving…');
-  const { error } = await sb.from('wishlist_items').delete().eq('id', id);
-  setSyncStatus(error ? 'error' : 'ok', error ? 'Sync error' : 'Synced');
   toast('🗑️ Removed');
 }
 
 /* ── Toggle got ── */
-async function toggleGot(id) {
+function toggleGot(id) {
   const item = items.find(i => i.id === id); if (!item) return;
   item.got = !item.got;
   saveLocal(); render();
-  setSyncStatus('syncing', 'Saving…');
-  const { error } = await sb.from('wishlist_items').update({ got: item.got }).eq('id', id);
-  setSyncStatus(error ? 'error' : 'ok', error ? 'Sync error' : 'Synced');
   toast(item.got ? '🎉 Got it! Treat yourself!' : '↩️ Back on the list');
 }
 
 /* ── Update all positions after reorder ── */
-async function updateAllPositions() {
-  if (saving) return;
-  saving = true;
-  setSyncStatus('syncing', 'Saving order…');
-  const updates = items.map((item, idx) =>
-    sb.from('wishlist_items').update({ position: idx }).eq('id', item.id)
-  );
-  await Promise.all(updates);
-  saving = false;
-  setSyncStatus('ok', 'Synced');
+function updateAllPositions() {
+  items.forEach((item, idx) => { item.position = idx; });
+  saveLocal();
 }
 
 /* ── Stats ── */
